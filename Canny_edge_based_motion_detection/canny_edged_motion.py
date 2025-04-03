@@ -199,11 +199,12 @@ def get_frames_from_video(video_path, frames = None):
     video = cv2.VideoCapture(video_path)
     frame_count = 0
     
-    while frame_count<=3000:
+    while True:
         ret, frame = video.read()
         if not ret:
             break    
-        # if frame_count>=10:    
+        # if frame_count>=10:   
+        frame = cv2.resize(frame, (320,240)) 
         frames.append(frame)
         frame_count+=1
         # path = f"frames/frames{frame_count}.jpg"
@@ -285,9 +286,14 @@ def scaled_norms(sub_norms, canny_norms): #input is a list
     
     return scaled_sub_norm.tolist(), scaled_canny_norm.tolist(), digital_signal
 
+def pre_processing_digital_signal(digital_signal):
+
+    median_filtered_dg = medfilt(digital_signal.flatten(), kernel_size=7)
+    return median_filtered_dg
+
 def crop_frames(frames, cropping, cropped_frames = []):
 
-    dimension = frames[0].shape
+    # dimension = frames[0].shape
     for i in range(1,len(frames)-1):
         cropped_frame = frames[i][70:120, :] 
         cropped_frames.append(cropped_frame)
@@ -296,7 +302,7 @@ def crop_frames(frames, cropping, cropped_frames = []):
     return frames
 
 def main():
-    video_path = "office_videos_data/office_mach_vid_2.mp4"
+    video_path = "/home/parth/CV_for_viatouch_media/data_for_Mapping_logic/office_transaciton_2/media.mp4"
     frames = get_frames_from_video(video_path)
     frames = crop_frames(frames,cropping=True)
     start_idx = 10
@@ -310,9 +316,9 @@ def main():
     sub_norms, canny_norms = processing_norms(subtracted_images, diff_canny_images)
     
     scaled_sub_norm, scaled_canny_norm, digital_signal = scaled_norms(sub_norms, canny_norms)
-    
+    processed_digital_signal = pre_processing_digital_signal(digital_signal)
 
-    interactive_frames_and_difference_plot(original_frames, subtracted_images, canny_images, diff_canny_images, scaled_sub_norm, scaled_canny_norm, digital_signal)
+    interactive_frames_and_difference_plot(original_frames, subtracted_images, canny_images, diff_canny_images, scaled_sub_norm, scaled_canny_norm, processed_digital_signal)
     
 if __name__ == '__main__':
     main()
