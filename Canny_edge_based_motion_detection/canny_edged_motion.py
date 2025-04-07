@@ -1,7 +1,9 @@
 import cv2
 import numpy as np
 import os
+import json
 import matplotlib
+from datetime import datetime
 matplotlib.use('TkAgg') 
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider, Button
@@ -10,7 +12,7 @@ from scipy.signal import medfilt
 from scipy.ndimage import gaussian_filter1d
 
 
-def interactive_frames_and_difference_plot(frames, frame_diff, canny_edges, subtracted_canny_images, sub_norms, canny_norms, digital_signal ):
+def interactive_frames_and_difference_plot(frame_times, frames, frame_diff, canny_edges, subtracted_canny_images, sub_norms, canny_norms, digital_signal, load_sensor_events):
     """
     Displays an interactive window that shows:
       - The *original* frame (left)
@@ -44,15 +46,18 @@ def interactive_frames_and_difference_plot(frames, frame_diff, canny_edges, subt
    
     #Processing canny_norms
     canny_norm_array = np.array(canny_norms)
-    frame_indices = np.arange(len(canny_norm_array))
+    # frame_indices = np.arange(len(frame_times))
+    frame_indices = np.array(frame_times)
     
     sub_norm_array = np.array(sub_norms)
     digital_signal_array = np.array(digital_signal)
+
+    # ls_indices = np.arange(load_sensor_events.shape[0])
     
     #Digital Data
     # --- Create the figure and axes layout ---
     fig = plt.figure(figsize=(12, 12))
-    gs = fig.add_gridspec(8, 2, height_ratios=[12,12,12,1,12,1,12,1])
+    gs = fig.add_gridspec(10, 2, height_ratios=[12,12,12,1,12,1,12,1,12,1])
 
     ax_orig = fig.add_subplot(gs[0, 0])      # top-left
     ax_diff = fig.add_subplot(gs[0, 1])      # top-right
@@ -61,6 +66,7 @@ def interactive_frames_and_difference_plot(frames, frame_diff, canny_edges, subt
     ax_plot_sub_norm = fig.add_subplot(gs[2,:])
     ax_plot_canny_norm = fig.add_subplot(gs[4,:])
     ax_plot_harm = fig.add_subplot(gs[6,:])
+    ax_ls_events = fig.add_subplot(gs[8,:])
 
     # Display the first original frame and the first difference image
     current_orig_im = ax_orig.imshow(original_rgb[0])
@@ -96,14 +102,24 @@ def interactive_frames_and_difference_plot(frames, frame_diff, canny_edges, subt
     # Plot the harmonic on the bottom subplot
     ax_plot_harm.plot(frame_indices, digital_signal_array, label="Digital Signal", color='g')
     ax_plot_harm.set_title(" Frame-to-Frame Grayscale Difference")
-    ax_plot_harm.set_xlabel(" Image Index")
     ax_plot_harm.set_ylabel("Digital Value ")
     ax_plot_harm.grid(True)
     ax_plot_harm.legend()
+
+    ax_ls_events.plot(frame_indices, load_sensor_events, label ="Load Sensor Events", color = 'g')
+    ax_ls_events.set_title("LS Events")
+    ax_ls_events.set_xlabel(" Time stamp")
+    ax_ls_events.set_ylabel("Type of Events")
+    ax_plot_harm.grid(True)
+    ax_plot_harm.legend()
+
+    
     
     marker_line = ax_plot_canny_norm.axvline(x=0, color='r', linestyle='--', linewidth=2)
     marker_line_1 = ax_plot_sub_norm.axvline(x=0, color='r', linestyle='--', linewidth=2)
     marker_line_2 = ax_plot_harm.axvline(x=0, color='r', linestyle='--', linewidth=2)
+    marker_line_3 = ax_ls_events.axvline(x=0, color='r', linestyle='--', linewidth=2)
+
 
 
     # --- Slider to navigate frames manually ---
@@ -150,10 +166,12 @@ def interactive_frames_and_difference_plot(frames, frame_diff, canny_edges, subt
         current_frequency_img.set_data(canny_edges_frames[idx])
         current_spatial_img.set_data(sub_canny_edges_frames[idx])
         # Update the vertical line in the plot
-        marker_line.set_xdata([idx, idx])
-        marker_line_1.set_xdata([idx, idx])
-        marker_line_2.set_xdata([idx, idx])
-        # Store current index
+        time_x = frame_indices[idx]
+        marker_line.set_xdata([time_x, time_x])
+        marker_line_1.set_xdata([time_x, time_x])
+        marker_line_2.set_xdata([time_x, time_x])
+        marker_line_3.set_xdata([time_x, time_x])
+
         current_index[0] = idx
 
     slider.on_changed(slider_update)
@@ -205,7 +223,14 @@ def get_frames_from_video(video_path, frames = None):
             break    
         # if frame_count>=10:   
         frame = cv2.resize(frame, (320,240)) 
-        frames.append(frame)
+
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        # print(np.average(gray))
+        if np.average(gray) < 45:
+            continue
+        else:
+            frames.append(frame)
+
         frame_count+=1
         # path = f"frames/frames{frame_count}.jpg"
         # cv2.imwrite(path, frame)
@@ -219,7 +244,7 @@ def process_frames_v2(original_frames, subtracted_images= []):
     canny_images = []
     diff_canny_images = []
     
-    for idx in range(1, len(original_frames)-1):
+    for idx in range(0, len(original_frames)-1):
         
         current_frame  = original_frames[idx]
         next_frame = original_frames[idx+1]
@@ -250,7 +275,7 @@ def process_frames_v2(original_frames, subtracted_images= []):
 def processing_norms(subtracted_images, diff_canny_images):
     canny_norms = []
     sub_img_norms = []
-    for i in range(1, len(diff_canny_images) - 1):
+    for i in range(0, len(diff_canny_images)-1):
         
         sub_norm = np.linalg.norm(subtracted_images[i]*5)
         sub_img_norms.append(sub_norm)
@@ -294,15 +319,99 @@ def pre_processing_digital_signal(digital_signal):
 def crop_frames(frames, cropping, cropped_frames = []):
 
     # dimension = frames[0].shape
-    for i in range(1,len(frames)-1):
+    for i in range(0,len(frames)-1):
         cropped_frame = frames[i][70:120, :] 
         cropped_frames.append(cropped_frame)
     if cropping == True:
         return cropped_frames
     return frames
 
+def processing_json_file(frames, start_idx, end_idx, json_file_path, door_messages, user_pickups, user_putbacks):
+    with open(json_file_path, 'r') as json_file:
+        data = json.load(json_file)
+    
+    activities = data["user_activity_instance"]["user_activities"]
+    total_duration = data["duration"]  # e.g. 16
+
+    n_frames = len(frames)
+    frame_times = np.linspace(0, total_duration, num=n_frames)
+    clipped_frame_times = frame_times[start_idx:end_idx-2]
+
+    # 1) Parse activity_time to datetime objects
+    fmt = "%Y-%m-%d:%H:%M:%S"
+    for act in activities:
+        act["datetime_obj"] = datetime.strptime(act["activity_time"], fmt)
+
+    # 2) Find earliest and latest time
+    min_time = min(act["datetime_obj"] for act in activities)
+    max_time = max(act["datetime_obj"] for act in activities)
+
+    # 3) Total time in seconds between earliest and latest
+    total_seconds = (max_time - min_time).total_seconds()
+
+    # 4) Scale each activity_time to 0..16
+    for act in activities:
+        if act['user_activity_type'] == "DOOR_OPENED" or act['user_activity_type'] == "DOOR_CLOSED":
+            delta = (act["datetime_obj"] - min_time).total_seconds()
+            if total_seconds == 0:
+                # If all times are identical (edge case), set everything to zero
+                scaled_time = 0
+            else:
+                scaled_time = total_duration * (delta / total_seconds)
+            door_messages.append(int(scaled_time))
+
+        elif act['user_activity_type'] == "USER_PICKUP":
+            delta = (act["datetime_obj"] - min_time).total_seconds()
+            if total_seconds == 0:
+                # If all times are identical (edge case), set everything to zero
+                scaled_time = 0
+            else:
+                scaled_time = total_duration * (delta / total_seconds)
+            user_pickups.append(int(scaled_time)-1)
+        else:
+            delta = (act["datetime_obj"] - min_time).total_seconds()
+            if total_seconds == 0:
+                # If all times are identical (edge case), set everything to zero
+                scaled_time = 0
+            else:
+                scaled_time = total_duration * (delta / total_seconds)
+            user_putbacks.append(int(scaled_time)-1)
+
+    print(door_messages, user_pickups, user_putbacks)
+    door_messages[0] = door_messages[0] + 1
+    door_messages[1] = door_messages[1] - 2
+
+    load_sensor_events = [-1]*int(total_duration)
+    print(load_sensor_events)
+
+    for i in door_messages:
+        load_sensor_events[i] = 2
+    for i in user_pickups:
+        load_sensor_events[i] = 0
+
+    ls_time = np.linspace(0, total_duration, num=len(load_sensor_events))  # <-- This is the key fix
+
+    # 2) Prepare an array to hold the aligned load-sensor events
+    ls_events_aligned = np.array([-1] * len(clipped_frame_times))
+
+    # 3) For each event in load_sensor_events, find the closest time in clipped_frame_times.
+    for event_idx, event_val in enumerate(load_sensor_events):
+        if event_val != -1:
+            # Use ls_time[event_idx], not load_sensor_events[event_idx]
+            t_event = ls_time[event_idx]                                       # <-- Key fix
+            i = np.argmin(np.abs(clipped_frame_times - t_event))              # <-- Key fix
+            ls_events_aligned[i] = event_val
+    print(ls_events_aligned)
+    return ls_events_aligned, clipped_frame_times
+
 def main():
-    video_path = "/home/parth/CV_for_viatouch_media/data_for_Mapping_logic/office_transaciton_2/media.mp4"
+    door_messages = []
+    user_pickups = []
+    user_putbacks = []
+    transaction = "data_for_Mapping_logic/office_transaciton_5"
+
+    json_file_path = os.path.join(transaction, "user_activites.json")
+    video_path = os.path.join(transaction, "media.mp4")
     frames = get_frames_from_video(video_path)
     frames = crop_frames(frames,cropping=True)
     start_idx = 10
@@ -310,7 +419,9 @@ def main():
     if end_idx <= start_idx:
         print("Not enough frames after cropping; adjust start/end indices.")
         return
-   
+    
+    ls_events_aligned, clipped_frame_times = processing_json_file(frames, start_idx, end_idx, json_file_path, door_messages, user_pickups, user_putbacks)
+
     valid_frames = frames[start_idx:end_idx]
     original_frames, subtracted_images, canny_images, diff_canny_images = process_frames_v2(valid_frames)
     sub_norms, canny_norms = processing_norms(subtracted_images, diff_canny_images)
@@ -318,7 +429,7 @@ def main():
     scaled_sub_norm, scaled_canny_norm, digital_signal = scaled_norms(sub_norms, canny_norms)
     processed_digital_signal = pre_processing_digital_signal(digital_signal)
 
-    interactive_frames_and_difference_plot(original_frames, subtracted_images, canny_images, diff_canny_images, scaled_sub_norm, scaled_canny_norm, processed_digital_signal)
+    interactive_frames_and_difference_plot(clipped_frame_times, original_frames, subtracted_images, canny_images, diff_canny_images, scaled_sub_norm, scaled_canny_norm, processed_digital_signal, ls_events_aligned)
     
 if __name__ == '__main__':
     main()
