@@ -1,0 +1,104 @@
+{
+    "user_activity_instance": {
+        "machine_id": "20286502-646c-4326-8cd8-6839637704b7",
+        "machine_name": "CV Machine III",
+        "report_id": "0a4880bd-df69-4a97-a83d-44328407505b",
+        "user_activities": [
+            {
+                "id": "34d38527-f598-4127-8651-684966c9f5a4",
+                "user_activity_type": "DOOR_OPENED",
+                "row": 0,
+                "column": 0,
+                "count": 0,
+                "in_use_count": 0,
+                "previous_count": 0,
+                "product_id": null,
+                "product_name": null,
+                "activity_time": "2025-04-02:12:25:32",
+                "activity_time_str": "2025-04-02:12:25:32"
+            },
+            {
+                "id": "a3d211f9-33b2-4531-941d-3063db6bdf17",
+                "user_activity_type": "USER_PICKUP",
+                "row": 1,
+                "column": 1,
+                "count": 0,
+                "in_use_count": 1,
+                "previous_count": 1,
+                "product_id": "9c3f9456-b3b3-4ce8-8119-a58e035f2494",
+                "product_name": "Celsius - Orange",
+                "activity_time": "2025-04-02:12:25:37",
+                "activity_time_str": "2025-04-02:12:25:37"
+            },
+            {
+                "id": "faf1285f-be1d-41d1-bb1e-9ec0d8c470c2",
+                "user_activity_type": "USER_PICKUP",
+                "row": 2,
+                "column": 1,
+                "count": 2,
+                "in_use_count": 1,
+                "previous_count": 3,
+                "product_id": "00de18a3-f2e5-4cfc-b3a2-1d9a1912c405",
+                "product_name": "Quest Chips - Loaded Taco",
+                "activity_time": "2025-04-02:12:25:40",
+                "activity_time_str": "2025-04-02:12:25:40"
+            },
+            {
+                "id": "dac8c3d9-fde9-4901-b261-72b1679e751f",
+                "user_activity_type": "DOOR_CLOSED",
+                "row": 0,
+                "column": 0,
+                "count": 0,
+                "in_use_count": 0,
+                "previous_count": 0,
+                "product_id": null,
+                "product_name": null,
+                "activity_time": "2025-04-02:12:25:45",
+                "activity_time_str": "2025-04-02:12:25:45"
+            }
+        ]
+    },
+    "correlation_id": "102.1743621957932793",
+    "timestamp": 0,
+    "status": 0,
+    "error": null,
+    "message": null,
+    "path": null,
+    "Error": null,
+    "fault": null,
+    "access_token": "ZiaWfjThjGAbcDKeNSyEvgiLFgju",
+    "ROI": [
+        0,
+        190,
+        640,
+        350
+    ],
+    "cv_products": [
+        "Quest CHIPS",
+        "Celsius Tropical Vibe",
+        "Quest Chips - Loaded Taco",
+        "Celsius - Orange",
+        "Celsius Arctic Vibe",
+        "Celsius Peach Vibe",
+        "Celsius - Wild Berry",
+        "Quest Chips Chili Lime"
+    ],
+    "fps": 10,
+    "duration": 13,
+    "line_items": [
+        {
+            "quantity": 1,
+            "shelf_row": 2,
+            "shelf_column": 1,
+            "shelf_id": "f907ce40-c24f-45bd-b4aa-b0899573666f",
+            "product_name": "Quest Chips - Loaded Taco"
+        },
+        {
+            "quantity": 1,
+            "shelf_row": 1,
+            "shelf_column": 1,
+            "shelf_id": "d629f27e-4fa3-40cd-aa19-55f3d521812d",
+            "product_name": "Celsius - Orange"
+        }
+    ]
+}

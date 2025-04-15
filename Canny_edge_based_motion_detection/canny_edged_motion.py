@@ -243,6 +243,9 @@ def get_frames_from_video(video_path, frames = None):
 def process_frames_v2(original_frames, subtracted_images= []):
     canny_images = []
     diff_canny_images = []
+    canny_on_sub_images = []
+    centroids_per_frame = []
+
     
     for idx in range(0, len(original_frames)-1):
         
@@ -258,9 +261,73 @@ def process_frames_v2(original_frames, subtracted_images= []):
         gaussian_blur_curr = cv2.filter2D(gs_current_frame_normalized,-1,kernel)
         gaussian_blur_next = cv2.filter2D(gs_next_frame_normalized, -1, kernel)
         subtracted_image = cv2.absdiff(gaussian_blur_curr, gaussian_blur_next)
+        
+        #Applying canny edge on the image difference to ge the object size and texture.
+        canny_gaussian_blur_curr = cv2.filter2D(gs_current_frame,-1,kernel)
+        canny_gaussian_blur_next = cv2.filter2D(gs_next_frame, -1, kernel)
+        canny_subtracted_image = cv2.absdiff(canny_gaussian_blur_curr, canny_gaussian_blur_next)
+
+        # canny_on_sub_img = cv2.Canny(canny_subtracted_image, 10, 200)
+        ret, canny_on_sub_img = cv2.threshold(canny_subtracted_image,10,200,cv2.THRESH_BINARY)
+        
+        cross_kernel = cv2.getStructuringElement(cv2.MORPH_CROSS,(5,5))
+        morphed_image =  cv2.morphologyEx(canny_on_sub_img, cv2.MORPH_GRADIENT, cross_kernel, iterations=3)
+        contours, hierarchy = cv2.findContours(
+                        morphed_image,
+                        cv2.RETR_EXTERNAL,
+                        cv2.CHAIN_APPROX_SIMPLE
+                        )
+        # print(contours)
+        black_canvas = np.zeros((morphed_image.shape[0], morphed_image.shape[1], 3), dtype=np.uint8)
+
+        # Set a minimum contour area to filter smaller contours (if required)
+        min_area = 800
+        filtered_contours = []
+        for cnt in contours:
+            if cv2.contourArea(cnt)>=min_area:
+                filtered_contours.append(cnt)
+        # print(filtered_contours)
+
+        # Draw contours onto your black canvas
+        cv2.drawContours(black_canvas, filtered_contours, -1, (0, 255, 0), 3)
+        
+        # Compute centroids for all filtered contours
+        centroids = []
+        for cnt in filtered_contours:
+            M = cv2.moments(cnt)
+            if M["m00"] != 0:
+                cx = int(M["m10"] / M["m00"])
+                cy = int(M["m01"] / M["m00"])
+                centroids.append((cx, cy))
+        # If you want to visualize each contour's centroid and one average centroid:
+        if len(centroids) > 0:
+            # Draw a small circle (blue) on each individual centroid
+            for (cx, cy) in centroids:
+                cv2.circle(black_canvas, (cx, cy), 3, (255, 0, 0), -1)
+
+            # Calculate the average of these centroids
+            avg_x = int(sum(c[0] for c in centroids) / len(centroids))
+            avg_y = int(sum(c[1] for c in centroids) / len(centroids))
+            centroids_per_frame.append((avg_x,avg_y))
+            # Draw the average centroid in red
+            cv2.circle(black_canvas, (avg_x, avg_y), 10, (0, 0, 255), -1)
+            cv2.putText(
+                black_canvas,
+                f"Avg: ({avg_x}, {avg_y})",
+                (avg_x + 10, avg_y),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                (0, 0, 255),
+                1
+            )
+        else:
+            centroids_per_frame.append((0,0))
+        canny_on_sub_images.append(black_canvas)
+        
+        #Appending the image difference, which will be used to calculate the norm
         subtracted_images.append(subtracted_image)
         
-       
+       # Canny Edge applied here and then taking the difference of the Canny frames to get a estimate of the object.
         edges_current_frame = cv2.Canny(gs_current_frame, 100, 200)
         canny_images.append(edges_current_frame)
         edges_next_frame = cv2.Canny(gs_next_frame, 100, 200)
@@ -270,7 +337,7 @@ def process_frames_v2(original_frames, subtracted_images= []):
         diff_canny_images.append(filtered_image)
         
         
-    return original_frames, subtracted_images, canny_images, diff_canny_images
+    return original_frames, subtracted_images, canny_images, diff_canny_images, canny_on_sub_images, centroids_per_frame
 
 def processing_norms(subtracted_images, diff_canny_images):
     canny_norms = []
@@ -309,6 +376,7 @@ def scaled_norms(sub_norms, canny_norms): #input is a list
     threshold = 0.4
     digital_signal = np.where(np.array(combined_harmonic)>threshold, 1, 0).reshape(-1,1)
     
+    
     return scaled_sub_norm.tolist(), scaled_canny_norm.tolist(), digital_signal
 
 def pre_processing_digital_signal(digital_signal):
@@ -331,7 +399,7 @@ def processing_json_file(frames, start_idx, end_idx, json_file_path, door_messag
         data = json.load(json_file)
     
     activities = data["user_activity_instance"]["user_activities"]
-    total_duration = data["duration"]  # e.g. 16
+    total_duration = data["duration"]
 
     n_frames = len(frames)
     frame_times = np.linspace(0, total_duration, num=n_frames)
@@ -382,14 +450,13 @@ def processing_json_file(frames, start_idx, end_idx, json_file_path, door_messag
     door_messages[1] = door_messages[1] - 2
 
     load_sensor_events = [-1]*int(total_duration)
-    print(load_sensor_events)
 
     for i in door_messages:
         load_sensor_events[i] = 2
     for i in user_pickups:
         load_sensor_events[i] = 0
 
-    ls_time = np.linspace(0, total_duration, num=len(load_sensor_events))  # <-- This is the key fix
+    ls_time = np.linspace(0, total_duration, num=len(load_sensor_events)) 
 
     # 2) Prepare an array to hold the aligned load-sensor events
     ls_events_aligned = np.array([-1] * len(clipped_frame_times))
@@ -398,17 +465,16 @@ def processing_json_file(frames, start_idx, end_idx, json_file_path, door_messag
     for event_idx, event_val in enumerate(load_sensor_events):
         if event_val != -1:
             # Use ls_time[event_idx], not load_sensor_events[event_idx]
-            t_event = ls_time[event_idx]                                       # <-- Key fix
-            i = np.argmin(np.abs(clipped_frame_times - t_event))              # <-- Key fix
+            t_event = ls_time[event_idx]                                      
+            i = np.argmin(np.abs(clipped_frame_times - t_event))            
             ls_events_aligned[i] = event_val
-    print(ls_events_aligned)
     return ls_events_aligned, clipped_frame_times
 
 def main():
     door_messages = []
     user_pickups = []
     user_putbacks = []
-    transaction = "data_for_Mapping_logic/office_transaciton_5"
+    transaction = "data_for_Mapping_logic/office_transaction_1"
 
     json_file_path = os.path.join(transaction, "user_activites.json")
     video_path = os.path.join(transaction, "media.mp4")
@@ -423,13 +489,16 @@ def main():
     ls_events_aligned, clipped_frame_times = processing_json_file(frames, start_idx, end_idx, json_file_path, door_messages, user_pickups, user_putbacks)
 
     valid_frames = frames[start_idx:end_idx]
-    original_frames, subtracted_images, canny_images, diff_canny_images = process_frames_v2(valid_frames)
+    original_frames, subtracted_images, canny_images, diff_canny_images, canny_on_sub_images, centroids_per_frame = process_frames_v2(valid_frames)
     sub_norms, canny_norms = processing_norms(subtracted_images, diff_canny_images)
     
     scaled_sub_norm, scaled_canny_norm, digital_signal = scaled_norms(sub_norms, canny_norms)
     processed_digital_signal = pre_processing_digital_signal(digital_signal)
+    # print(digital_signal)
+    crucial_indices = np.where(digital_signal>0)[0]
+    print(crucial_indices)
 
-    interactive_frames_and_difference_plot(clipped_frame_times, original_frames, subtracted_images, canny_images, diff_canny_images, scaled_sub_norm, scaled_canny_norm, processed_digital_signal, ls_events_aligned)
+    # interactive_frames_and_difference_plot(clipped_frame_times, original_frames, canny_on_sub_images, canny_images, diff_canny_images, scaled_sub_norm, scaled_canny_norm, processed_digital_signal, ls_events_aligned)
     
 if __name__ == '__main__':
     main()

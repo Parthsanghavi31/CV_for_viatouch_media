@@ -1,0 +1,84 @@
+{
+    "user_activity_instance": {
+        "machine_id": "20286502-646c-4326-8cd8-6839637704b7",
+        "machine_name": "CV Machine III",
+        "report_id": "3cd77fa6-276b-42e8-802d-54c6c7521f0f",
+        "user_activities": [
+            {
+                "id": "f101798b-f9ca-4be9-a1b0-490c9f6c07d1",
+                "user_activity_type": "DOOR_OPENED",
+                "row": 0,
+                "column": 0,
+                "count": 0,
+                "in_use_count": 0,
+                "previous_count": 0,
+                "product_id": null,
+                "product_name": null,
+                "activity_time": "2025-04-02:13:15:52",
+                "activity_time_str": "2025-04-02:13:15:52"
+            },
+            {
+                "id": "287aeaf1-af05-493b-80f4-3439dc51018a",
+                "user_activity_type": "USER_PICKUP",
+                "row": 1,
+                "column": 5,
+                "count": 3,
+                "in_use_count": 1,
+                "previous_count": 4,
+                "product_id": "9c3f9456-b3b3-4ce8-8119-a58e035f2494",
+                "product_name": "Celsius - Orange",
+                "activity_time": "2025-04-02:13:15:56",
+                "activity_time_str": "2025-04-02:13:15:56"
+            },
+            {
+                "id": "d6a8ad1a-ba85-4c57-9ad5-cb7308caa294",
+                "user_activity_type": "DOOR_CLOSED",
+                "row": 0,
+                "column": 0,
+                "count": 0,
+                "in_use_count": 0,
+                "previous_count": 0,
+                "product_id": null,
+                "product_name": null,
+                "activity_time": "2025-04-02:13:16:13",
+                "activity_time_str": "2025-04-02:13:16:13"
+            }
+        ]
+    },
+    "correlation_id": "102.1743624985097418",
+    "timestamp": 0,
+    "status": 0,
+    "error": null,
+    "message": null,
+    "path": null,
+    "Error": null,
+    "fault": null,
+    "access_token": "ZiaWfjThjGAbcDKeNSyEvgiLFgju",
+    "ROI": [
+        0,
+        190,
+        640,
+        350
+    ],
+    "cv_products": [
+        "Quest CHIPS",
+        "Celsius Tropical Vibe",
+        "Quest Chips - Loaded Taco",
+        "Celsius - Orange",
+        "Celsius Arctic Vibe",
+        "Celsius Peach Vibe",
+        "Celsius - Wild Berry",
+        "Quest Chips Chili Lime"
+    ],
+    "fps": 10,
+    "duration": 21,
+    "line_items": [
+        {
+            "quantity": 2,
+            "shelf_row": 1,
+            "shelf_column": 5,
+            "shelf_id": "95b0df20-bc91-4a50-ba29-585f7d66e646",
+            "product_name": "Celsius - Orange"
+        }
+    ]
+}
