@@ -10,7 +10,7 @@ from matplotlib.widgets import Slider, Button
 from sklearn.preprocessing import MinMaxScaler
 from scipy.signal import medfilt
 from scipy.ndimage import gaussian_filter1d
-
+import statistics
 
 def interactive_frames_and_difference_plot(frame_times, frames, frame_diff, canny_edges, subtracted_canny_images, sub_norms, canny_norms, digital_signal, load_sensor_events):
     """
@@ -57,7 +57,7 @@ def interactive_frames_and_difference_plot(frame_times, frames, frame_diff, cann
     #Digital Data
     # --- Create the figure and axes layout ---
     fig = plt.figure(figsize=(12, 12))
-    gs = fig.add_gridspec(10, 2, height_ratios=[12,12,12,1,12,1,12,1,12,1])
+    gs = fig.add_gridspec(10, 2, height_ratios=[20,12,12,1,12,1,12,1,12,1])
 
     ax_orig = fig.add_subplot(gs[0, 0])      # top-left
     ax_diff = fig.add_subplot(gs[0, 1])      # top-right
@@ -308,7 +308,7 @@ def process_frames_v2(original_frames, subtracted_images= []):
             # Calculate the average of these centroids
             avg_x = int(sum(c[0] for c in centroids) / len(centroids))
             avg_y = int(sum(c[1] for c in centroids) / len(centroids))
-            centroids_per_frame.append((avg_x,avg_y))
+            
             # Draw the average centroid in red
             cv2.circle(black_canvas, (avg_x, avg_y), 10, (0, 0, 255), -1)
             cv2.putText(
@@ -320,8 +320,11 @@ def process_frames_v2(original_frames, subtracted_images= []):
                 (0, 0, 255),
                 1
             )
+            avg_y += 70
+            centroids_per_frame.append((avg_x,avg_y))
         else:
             centroids_per_frame.append((0,0))
+        # print(f"Centroids of Individual frames : {len(centroids_per_frame)} \n")
         canny_on_sub_images.append(black_canvas)
         
         #Appending the image difference, which will be used to calculate the norm
@@ -384,6 +387,38 @@ def pre_processing_digital_signal(digital_signal):
     median_filtered_dg = medfilt(digital_signal.flatten(), kernel_size=7)
     return median_filtered_dg
 
+def draw_bbox_original_frame(org_frames, grouped_indices, grouped_centroids):
+    # Flatten index-centroid pairs for quick lookup
+    frame_to_centroid = {}
+    modified_frames = []
+    for group_indices, group_centroids in zip(grouped_indices, grouped_centroids):
+        for idx, centroid in zip(group_indices, group_centroids):
+            frame_to_centroid[idx] = centroid
+
+    # Loop through all frames
+    for i, frame in enumerate(org_frames):
+        frame_copy = frame.copy()
+
+        # Draw box only if this frame has a valid centroid
+        if i in frame_to_centroid:
+            avg_x, avg_y = frame_to_centroid[i]
+
+            if (avg_x, avg_y) != (0, 0):
+                cv2.circle(frame_copy, (avg_x, avg_y), 10, (0, 0, 255), -1)
+                pt1 = (avg_x - 70, avg_y - 70)
+                pt2 = (avg_x + 60, avg_y + 70)
+                cv2.rectangle(frame_copy, pt1, pt2, (0, 255, 0), 3)
+
+        # Show every frame (with or without bounding box)
+        modified_frames.append(frame_copy)
+        # cv2.imshow("ROI_frames", frame_copy)
+    #     key = cv2.waitKey(50)
+    #     if key == 27:  # ESC to exit
+    #         break
+
+    # cv2.destroyAllWindows()
+    return modified_frames
+    
 def crop_frames(frames, cropping, cropped_frames = []):
 
     # dimension = frames[0].shape
@@ -470,35 +505,140 @@ def processing_json_file(frames, start_idx, end_idx, json_file_path, door_messag
             ls_events_aligned[i] = event_val
     return ls_events_aligned, clipped_frame_times
 
+# def user_act_digi_signal(crucial_indices, centroids_per_frame):
+#     all_activities = []
+#     corr_centroids = []
+#     ind_user_act = []
+#     ind_centroids_list = []
+#     processed_centroids = []
+
+#     for i, value in enumerate(crucial_indices):
+#         if i == 0:
+#             ind_user_act.append(value)
+            
+#             ind_centroids_list.append(centroids_per_frame[i])
+#         else:
+#             if value - crucial_indices[i-1]>1:
+#                 all_activities.append(ind_user_act)
+#                 corr_centroids.append(ind_centroids_list)
+#                 ind_user_act = []
+#                 ind_centroids_list = []
+#             ind_user_act.append(value)
+#             ind_centroids_list.append(centroids_per_frame[i])
+#             # break
+#     if ind_user_act:
+#         all_activities.append(ind_user_act)
+#         corr_centroids.append(ind_centroids_list)
+    
+#     for i in corr_centroids:
+#         # Filter out (0, 0) elements
+#         valid_centroids = [] #[pt for pt in i print(1) if pt != (0, 0)]
+#         for point in i:
+#             if tuple(point) != (0,0):
+#                 valid_centroids.append(point)
+#         if len(valid_centroids) == 0:
+#             processed_centroids.append([(0, 0)] * len(i))  # fallback if all were invalid
+#             continue
+
+#         # Compute average x and y
+#         avg_x = int(sum(pt[0] for pt in valid_centroids) / len(valid_centroids))
+#         avg_y = int(sum(pt[1] for pt in valid_centroids) / len(valid_centroids))
+#         avg_centroid = (avg_x, avg_y)
+
+#         # Repeat average centroid for original group length
+#         act = [avg_centroid] * len(i)
+#         processed_centroids.append(act)
+
+#     return all_activities, processed_centroids
+
+def user_act_digi_signal(crucial_indices, centroids_per_frame):
+    all_activities = []
+    processed_centroids = []
+
+    ind_user_act = []
+    ind_centroids_list = []
+
+    for i, value in enumerate(crucial_indices):
+        centroid = centroids_per_frame[i]
+
+        if i == 0:
+            ind_user_act.append(value)
+            ind_centroids_list.append(centroid)
+        else:
+            if value - crucial_indices[i - 1] > 1:
+                # Save previous group
+                all_activities.append(ind_user_act)
+                
+                # Process average centroid for previous group
+                valid_centroids = [pt for pt in ind_centroids_list if tuple(pt) != (0, 0)]
+                if valid_centroids:
+                    avg_x = int(sum(pt[0] for pt in valid_centroids) / len(valid_centroids))
+                    avg_y = int(sum(pt[1] for pt in valid_centroids) / len(valid_centroids))
+                    avg_centroid = (avg_x, avg_y)
+                else:
+                    avg_centroid = (0, 0)
+
+                processed_centroids.append([avg_centroid] * len(ind_centroids_list))
+
+                # Reset for next group
+                ind_user_act = []
+                ind_centroids_list = []
+
+            # Continue building current group
+            ind_user_act.append(value)
+            ind_centroids_list.append(centroid)
+
+    # Process final group
+    if ind_user_act:
+        all_activities.append(ind_user_act)
+
+        valid_centroids = [pt for pt in ind_centroids_list if tuple(pt) != (0, 0)]
+        if valid_centroids:
+            avg_x = int(sum(pt[0] for pt in valid_centroids) / len(valid_centroids))
+            avg_y = int(sum(pt[1] for pt in valid_centroids) / len(valid_centroids))
+            avg_centroid = (avg_x, avg_y)
+        else:
+            avg_centroid = (0, 0)
+
+        processed_centroids.append([avg_centroid] * len(ind_centroids_list))
+
+    return all_activities, processed_centroids
+        
+    
+
+
 def main():
     door_messages = []
     user_pickups = []
     user_putbacks = []
-    transaction = "data_for_Mapping_logic/office_transaction_1"
+    transaction = "data_for_Mapping_logic/office_transaction_9"
 
     json_file_path = os.path.join(transaction, "user_activites.json")
     video_path = os.path.join(transaction, "media.mp4")
     frames = get_frames_from_video(video_path)
-    frames = crop_frames(frames,cropping=True)
+    cropped_frames = crop_frames(frames,cropping=True)
     start_idx = 10
-    end_idx   = len(frames) - 10
+    end_idx   = len(cropped_frames) - 10
     if end_idx <= start_idx:
         print("Not enough frames after cropping; adjust start/end indices.")
         return
     
-    ls_events_aligned, clipped_frame_times = processing_json_file(frames, start_idx, end_idx, json_file_path, door_messages, user_pickups, user_putbacks)
-
+    ls_events_aligned, clipped_frame_times = processing_json_file(cropped_frames, start_idx, end_idx, json_file_path, door_messages, user_pickups, user_putbacks)
     valid_frames = frames[start_idx:end_idx]
-    original_frames, subtracted_images, canny_images, diff_canny_images, canny_on_sub_images, centroids_per_frame = process_frames_v2(valid_frames)
+    valid_cropped_frames = cropped_frames[start_idx:end_idx]
+    original_frames, subtracted_images, canny_images, diff_canny_images, canny_on_sub_images, centroids_per_frame = process_frames_v2(valid_cropped_frames)
     sub_norms, canny_norms = processing_norms(subtracted_images, diff_canny_images)
     
     scaled_sub_norm, scaled_canny_norm, digital_signal = scaled_norms(sub_norms, canny_norms)
     processed_digital_signal = pre_processing_digital_signal(digital_signal)
-    # print(digital_signal)
     crucial_indices = np.where(digital_signal>0)[0]
-    print(crucial_indices)
 
-    # interactive_frames_and_difference_plot(clipped_frame_times, original_frames, canny_on_sub_images, canny_images, diff_canny_images, scaled_sub_norm, scaled_canny_norm, processed_digital_signal, ls_events_aligned)
+    selected_centroids = np.array(centroids_per_frame)[crucial_indices]
+    
+    all_activities, processed_centroids = user_act_digi_signal(crucial_indices, selected_centroids)
+        
+    modified_frames = draw_bbox_original_frame(valid_frames, all_activities[1:-1], processed_centroids[1:-1])
+    interactive_frames_and_difference_plot(clipped_frame_times, modified_frames, canny_on_sub_images, canny_images, diff_canny_images, scaled_sub_norm, scaled_canny_norm, processed_digital_signal, ls_events_aligned)
     
 if __name__ == '__main__':
     main()
