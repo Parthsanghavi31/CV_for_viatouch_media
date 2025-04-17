@@ -10,7 +10,10 @@ from matplotlib.widgets import Slider, Button
 from sklearn.preprocessing import MinMaxScaler
 from scipy.signal import medfilt
 from scipy.ndimage import gaussian_filter1d
-import statistics
+import imageio
+import numpy as np
+from image_enhancement import enhance_image
+from PIL import Image, ImageEnhance
 
 def interactive_frames_and_difference_plot(frame_times, frames, frame_diff, canny_edges, subtracted_canny_images, sub_norms, canny_norms, digital_signal, load_sensor_events):
     """
@@ -60,8 +63,8 @@ def interactive_frames_and_difference_plot(frame_times, frames, frame_diff, cann
     gs = fig.add_gridspec(10, 2, height_ratios=[20,12,12,1,12,1,12,1,12,1])
 
     ax_orig = fig.add_subplot(gs[0, 0])      # top-left
-    ax_diff = fig.add_subplot(gs[0, 1])      # top-right
-    ax_canny_edges_frames = fig.add_subplot(gs[1,0])
+    ax_diff = fig.add_subplot(gs[1, 0])      # top-right
+    ax_canny_edges_frames = fig.add_subplot(gs[0,1])
     ax_sub_canny_edges_frames = fig.add_subplot(gs[1,1])
     ax_plot_sub_norm = fig.add_subplot(gs[2,:])
     ax_plot_canny_norm = fig.add_subplot(gs[4,:])
@@ -112,15 +115,11 @@ def interactive_frames_and_difference_plot(frame_times, frames, frame_diff, cann
     ax_ls_events.set_ylabel("Type of Events")
     ax_plot_harm.grid(True)
     ax_plot_harm.legend()
-
-    
     
     marker_line = ax_plot_canny_norm.axvline(x=0, color='r', linestyle='--', linewidth=2)
     marker_line_1 = ax_plot_sub_norm.axvline(x=0, color='r', linestyle='--', linewidth=2)
     marker_line_2 = ax_plot_harm.axvline(x=0, color='r', linestyle='--', linewidth=2)
     marker_line_3 = ax_ls_events.axvline(x=0, color='r', linestyle='--', linewidth=2)
-
-
 
     # --- Slider to navigate frames manually ---
     # Place the slider below the bottom row
@@ -227,7 +226,6 @@ def get_frames_from_video(video_path, frames = None):
         resized_frame = cv2.resize(frame, (320,240)) 
 
         gray = cv2.cvtColor(resized_frame, cv2.COLOR_BGR2GRAY)
-        # print(np.average(gray))
         if np.average(gray) < 45:
             continue
         else:
@@ -239,7 +237,7 @@ def get_frames_from_video(video_path, frames = None):
         # cv2.imwrite(path, frame)
         
     video.release()
-    cv2.destroyAllWindows()
+    # cv2.destroyAllWindows()
     return frames, original_frames
 
 def process_frames_v2(original_frames, subtracted_images= []):
@@ -554,25 +552,68 @@ def draw_bbox_original_frame(org_frames, original_frames, grouped_indices, group
                 pad_img = np.pad(original_frame_copy, ((180,180), (180,180), (0,0)), mode='wrap')
                 cropped_frame = pad_img[(pt1[1]+90)*2:(pt2[1]+90)*2, (pt1[0]+90)*2:(pt2[0]+90)*2]
                 bbox_cropped_frames.append(cropped_frame)
-                print(cropped_frame.shape)
-                cv2.imshow("ROI_frames", cropped_frame)
-                key = cv2.waitKey(100)
-                if key == 27:  # ESC to exit
-                    break
+                # print(cropped_frame.shape)
+                # cv2.imshow("ROI_frames", cropped_frame)
+                # key = cv2.waitKey(100)
+                # if key == 27:  # ESC to exit
+                #     break
 
 
         modified_frames.append(frame_copy)
-    cv2.destroyAllWindows()
+    # cv2.destroyAllWindows()
     return modified_frames, bbox_cropped_frames
+
+def apply_pil_enhancements(img, brightness, contrast, color, sharpness):
+    img = ImageEnhance.Brightness(img).enhance(brightness)
+    img = ImageEnhance.Contrast(img).enhance(contrast)
+    img = ImageEnhance.Color(img).enhance(color)
+    img = ImageEnhance.Sharpness(img).enhance(sharpness)
+    return img
+
+def apply_gamma_correction(image, gamma):
+    if gamma == 1.0:
+        return image
+    inv_gamma = 1.0 / gamma
+    table = np.array([(i / 255.0) ** inv_gamma * 255 for i in range(256)]).astype("uint8")
+    return cv2.LUT(image, table)
+
+def apply_clahe(image, clipLimit=2.0, tileGridSize=(8,8)):
+    lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
+    l, a, b = cv2.split(lab)
+    clahe = cv2.createCLAHE(clipLimit=clipLimit, tileGridSize=tileGridSize)
+    cl = clahe.apply(l)
+    merged = cv2.merge((cl, a, b))
+    return cv2.cvtColor(merged, cv2.COLOR_LAB2BGR)
+
+def image_enhancement(frames, enhanced_frames,
+                      brightness=1.0, contrast=1.2, color=1.6, sharpness=2.2,
+                      gamma=1.0, use_clahe=True):
+    
+    for frame in frames:
+        # --- PIL Enhancements ---
+        img_pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        img_pil = apply_pil_enhancements(img_pil, brightness, contrast, color, sharpness)
+        image = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
+
+        # --- OpenCV Enhancements ---
+        image = apply_gamma_correction(image, gamma)
+
+        if use_clahe:
+            image = apply_clahe(image)
+        image = cv2.cvtColor(np.array(image), cv2.COLOR_BGR2RGB)
+        enhanced_frames.append(image)
+
+    return enhanced_frames
  
 #----------------------------------------------------------------------------------------------------------------------------------------------------# 
         
 def main():
+    enhanced_frames = []
     door_messages = []
     user_pickups = []
     user_putbacks = []
-    transaction = "data_for_Mapping_logic/office_transaction_10"
-
+    transaction_number = "office_transaction_29"
+    transaction = os.path.join("data_for_Mapping_logic", transaction_number)
     json_file_path = os.path.join(transaction, "user_activites.json")
     video_path = os.path.join(transaction, "media.mp4")
     frames, original_frames = get_frames_from_video(video_path)
@@ -599,6 +640,8 @@ def main():
     all_activities, processed_centroids = user_act_digi_signal(crucial_indices, selected_centroids)
         
     modified_frames, bbox_cropped_frames = draw_bbox_original_frame(valid_frames, original_frames, all_activities[1:-1], processed_centroids[1:-1])
+    enhanced_frames = image_enhancement(bbox_cropped_frames, enhanced_frames)
+    
     interactive_frames_and_difference_plot(clipped_frame_times, modified_frames, canny_on_sub_images, canny_images, diff_canny_images, scaled_sub_norm, scaled_canny_norm, processed_digital_signal, ls_events_aligned)
     
 if __name__ == '__main__':
