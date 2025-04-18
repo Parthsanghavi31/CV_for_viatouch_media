@@ -570,14 +570,6 @@ def apply_pil_enhancements(img, brightness, contrast, color, sharpness):
     img = ImageEnhance.Sharpness(img).enhance(sharpness)
     return img
 
-def apply_gamma_correction(image, gamma):
-    if gamma == 1.0:
-        return image
-    inv_gamma = 1.0 / gamma
-    table = np.array([(i / 255.0) ** inv_gamma * 255 for i in range(256)]).astype("uint8")
-    return cv2.LUT(image, table)
-
-def apply_clahe(image, clipLimit=2.0, tileGridSize=(8,8)):
     lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
     l, a, b = cv2.split(lab)
     clahe = cv2.createCLAHE(clipLimit=clipLimit, tileGridSize=tileGridSize)
@@ -585,37 +577,39 @@ def apply_clahe(image, clipLimit=2.0, tileGridSize=(8,8)):
     merged = cv2.merge((cl, a, b))
     return cv2.cvtColor(merged, cv2.COLOR_LAB2BGR)
 
-def image_enhancement(frames, enhanced_frames,
-                      brightness=1.0, contrast=1.2, color=1.6, sharpness=2.2,
-                      gamma=1.0, use_clahe=True):
+def image_enhancement(frames, enhanced_frames, frame_save_path,
+                      brightness=0.9, contrast=1.2, color=1.6, sharpness=2.0):
     
-    for frame in frames:
+    for i, frame in enumerate(frames):
         # --- PIL Enhancements ---
         img_pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
         img_pil = apply_pil_enhancements(img_pil, brightness, contrast, color, sharpness)
         image = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
-
-        # --- OpenCV Enhancements ---
-        image = apply_gamma_correction(image, gamma)
-
-        if use_clahe:
-            image = apply_clahe(image)
+                
+        frame_name = f"frame_{i}.jpg"
+        cv2.imwrite(os.path.join(frame_save_path, frame_name), image)
         image = cv2.cvtColor(np.array(image), cv2.COLOR_BGR2RGB)
         enhanced_frames.append(image)
-
+    print("Completed Saving Images")
     return enhanced_frames
  
 #----------------------------------------------------------------------------------------------------------------------------------------------------# 
         
 def main():
+    transaction_number = "office_transaction_10"
+
+    
     enhanced_frames = []
     door_messages = []
     user_pickups = []
     user_putbacks = []
-    transaction_number = "office_transaction_29"
     transaction = os.path.join("data_for_Mapping_logic", transaction_number)
     json_file_path = os.path.join(transaction, "user_activites.json")
     video_path = os.path.join(transaction, "media.mp4")
+    
+    frame_save_path = os.path.join("frames_for_classification", transaction_number)
+    os.makedirs(frame_save_path, exist_ok=True)
+    
     frames, original_frames = get_frames_from_video(video_path)
     cropped_frames = crop_frames(frames,cropping=True)
     start_idx = 10
@@ -640,9 +634,9 @@ def main():
     all_activities, processed_centroids = user_act_digi_signal(crucial_indices, selected_centroids)
         
     modified_frames, bbox_cropped_frames = draw_bbox_original_frame(valid_frames, original_frames, all_activities[1:-1], processed_centroids[1:-1])
-    enhanced_frames = image_enhancement(bbox_cropped_frames, enhanced_frames)
+    enhanced_frames = image_enhancement(bbox_cropped_frames, enhanced_frames, frame_save_path)
     
-    interactive_frames_and_difference_plot(clipped_frame_times, modified_frames, canny_on_sub_images, canny_images, diff_canny_images, scaled_sub_norm, scaled_canny_norm, processed_digital_signal, ls_events_aligned)
+    # interactive_frames_and_difference_plot(clipped_frame_times, modified_frames, canny_on_sub_images, canny_images, diff_canny_images, scaled_sub_norm, scaled_canny_norm, processed_digital_signal, ls_events_aligned)
     
 if __name__ == '__main__':
     main()

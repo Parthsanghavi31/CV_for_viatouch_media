@@ -7,8 +7,6 @@ import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider, Button
 from sklearn.preprocessing import MinMaxScaler
 
-
-
 def interactive_frames_and_difference_plot(frames, frame_diff, filtered_images, freq_to_spatial_frames ):
     """
     Displays an interactive window that shows:
